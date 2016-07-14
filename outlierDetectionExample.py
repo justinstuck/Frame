@@ -5,7 +5,7 @@ Created on Wed Jul 13 09:27:22 2016
 @author: Justin.Stuck
 """
 
-print(__doc__)
+#print(__doc__)
 import pandas as pd
 from StringIO import StringIO
 from requests import get
@@ -41,70 +41,87 @@ def get_data():
     #respondents = history[history['studyidguid']==studyid.lower()]
     return history[history.name == 'Unity Frame Shopping'], dqs[dqs.name== 'Unity Frame Shopping']
     
-        
+def to_excel(data,filename):
+    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+    data.to_excel(writer, sheet_name='Removal Candidates')
+    writer.save()
+def calc_and_plot(outliers_fraction):
+    
+    # Example settings
+    data, dqs = get_data()
+    n_samples = data.shape[0]
+    print n_samples
+    
+    
 
-
-# Example settings
-data, dqs = get_data()
-n_samples = data.shape[0]
-print n_samples
-
-outliers_fraction = 0.10
-clusters_separation = [0]
-
-# define two outlier detection tools to be compared
-classifiers = {
-    "One-Class SVM": svm.OneClassSVM(nu=0.95 * outliers_fraction + 0.05,
-                                     kernel="rbf", gamma=0.1),
-    "robust covariance estimator": EllipticEnvelope(contamination=.1)}
-
-
-xx, yy = np.meshgrid(np.linspace(-5, 5, 500), np.linspace(-3, 3, 500))
-n_inliers = int((1. - outliers_fraction) * n_samples)
-n_outliers = int(outliers_fraction * n_samples)
-ground_truth = np.ones(n_samples, dtype=int)
-ground_truth[-n_outliers:] = 0
-
-X = zip(data['bandwidth'],data['latency'])
-#plt.scatter(X[:,0],X[:,1])
-#print X
-plt.show()
-plt.figure(figsize=(10, 5))
-for i, (clf_name, clf) in enumerate(classifiers.items()):
-    # fit the data and tag outliers
+    
+    # define two outlier detection tools to be compared
+    '''
+    classifiers = {
+        "One-Class SVM": svm.OneClassSVM(nu=0.95 * outliers_fraction + 0.05,
+                                         kernel="rbf", gamma=0.1),
+        "robust covariance estimator": EllipticEnvelope(contamination=.1)}
+    '''
+    clf = EllipticEnvelope(contamination=.1)
+    
+    xx, yy = np.meshgrid(np.linspace(-5, 5, 500), np.linspace(-3, 3, 500))
+    n_inliers = int((1. - outliers_fraction) * n_samples)
+    n_outliers = int(outliers_fraction * n_samples)
+    ground_truth = np.ones(n_samples, dtype=int)
+    ground_truth[-n_outliers:] = 0
+    
+    X = zip(data['bandwidth'],data['latency'])
+    #plt.scatter(X[:,0],X[:,1])
+    #print X
+    plt.show()
+    plt.figure(figsize=(10, 5))
+    #for i, (clf_name, clf) in enumerate(classifiers.items()):
+        # fit the data and tag outliers
     clf.fit(zip(data['bandwidth'],data['latency']))
     data['y_pred'] = clf.decision_function(X).ravel()
     threshold = stats.scoreatpercentile(data['y_pred'],
                                         100 * outliers_fraction)
+    outliers = data[data['y_pred']<threshold]
     data['y_pred'] = data['y_pred'] > threshold
+    
     n_errors = (data['y_pred'] != ground_truth).sum()
     # plot the levels lines and the points
     Z = clf.decision_function(np.c_[xx.ravel(), yy.ravel()])
     Z = Z.reshape(xx.shape)
-    subplot = plt.subplot(1, 2, i + 1)
-    subplot.set_title("Outlier detection")
-    subplot.set_xlabel('bandwidth')
-    subplot.set_ylabel('latency')
+
+    plt.title("Outlier detection")
+    plt.xlabel('bandwidth')
+    plt.ylabel('latency')    
     
-    subplot.contourf(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),
+    
+    
+    plt.contourf(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),
                      cmap=plt.cm.Blues_r)
-    cs = subplot.contour(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),cmap=plt.cm.Blues_r)
+    cs = plt.contour(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),cmap=plt.cm.Blues_r)
     plt.clabel(cs, colors='k', fontsize=14)
     
-    a = subplot.contour(xx, yy, Z, levels=[threshold],
+    a = plt.contour(xx, yy, Z, levels=[threshold],
                         linewidths=2, colors='red')
-    subplot.contourf(xx, yy, Z, levels=[threshold, Z.max()],
+    plt.contourf(xx, yy, Z, levels=[threshold, Z.max()],
                      colors='orange')
-    b = subplot.scatter(data['bandwidth'],data['latency'], c='white')
-    c = subplot.scatter(dqs['bandwidth'],dqs['latency'], c='black')
-    subplot.axis('tight')
-    subplot.legend(
-        [a.collections[0], b''', c'''],
+    b = plt.scatter(data['bandwidth'],data['latency'], c='white')
+    c = plt.scatter(dqs['bandwidth'],dqs['latency'], c='black')
+    outies = plt.scatter(outliers['bandwidth'],outliers['latency'], s=100, facecolors='none', edgecolors='g')
+    plt.axis('tight')
+    plt.legend(
+        [a.collections[0], b, c],
         ['learned decision function', 'true inliers', 'true outliers'],
         prop=matplotlib.font_manager.FontProperties(size=11))
     #subplot.set_xlabel("%d. %s (errors: %d)" % (i + 1, clf_name, n_errors))
-    subplot.set_xlim((-5, 5))
-    subplot.set_ylim((-3, 3))
-plt.subplots_adjust(0.04, 0.1, 0.96, 0.94, 0.1, 0.26)
+    plt.xlim((-5, 5))
+    plt.ylim((-3, 3))
+    #plt.subplots_adjust(0.04, 0.1, 0.96, 0.94, 0.1, 0.26)
+    
+    plt.show()
+    return outliers
+    
 
-plt.show()
+    
+    
+data = calc_and_plot(outliers_fraction = 0.10)
+to_excel(data,'mahalTest.xlsx')
