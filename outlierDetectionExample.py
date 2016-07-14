@@ -56,7 +56,7 @@ clusters_separation = [0]
 classifiers = {
     "One-Class SVM": svm.OneClassSVM(nu=0.95 * outliers_fraction + 0.05,
                                      kernel="rbf", gamma=0.1),
-    "robust covariance estimator": EllipticEnvelope(contamination=.01)}
+    "robust covariance estimator": EllipticEnvelope(contamination=.1)}
 
 
 xx, yy = np.meshgrid(np.linspace(-5, 5, 500), np.linspace(-3, 3, 500))
@@ -88,6 +88,9 @@ for i, (clf_name, clf) in enumerate(classifiers.items()):
     
     subplot.contourf(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),
                      cmap=plt.cm.Blues_r)
+    cs = subplot.contour(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),cmap=plt.cm.Blues_r)
+    plt.clabel(cs, colors='k', fontsize=14)
+    
     a = subplot.contour(xx, yy, Z, levels=[threshold],
                         linewidths=2, colors='red')
     subplot.contourf(xx, yy, Z, levels=[threshold, Z.max()],
