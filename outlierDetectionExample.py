@@ -166,14 +166,11 @@ def to_excel(data,extras,filename):
 #plot3d()    
     
 outliers,dqs = calc_and_plot(outliers_fraction = 0.10)
-print outliers
-print '*********************************'
-print dqs
 outliers['Removed by Insights'] = outliers['ticketid'].isin(dqs['ticketid'])
 extraInsights = dqs[~(dqs['ticketid'].isin(outliers['ticketid']))]
 
 #data['Removed by insights'] = 
-to_excel(outliers,extraInsights,'mahalTest.xlsx')
+#to_excel(outliers,extraInsights,'mahalTest.xlsx')
 
 
 

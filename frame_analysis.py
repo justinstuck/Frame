@@ -55,7 +55,9 @@ class FrameCleaner():
             plt.subplot(len(feats), 1, feats.index(feature)+1)
             if feature == 'framerate':
                 bins = np.linspace(datashop[datashop>0].min(),datashop[datashop>0].max(),26)
-                plt.legend(loc='upper left', frameon=False)            
+                plt.legend(loc='upper left', frameon=False)
+            elif feature == 'latency':
+                bins = np.linspace(datashop[datashop>0].min(),400,26)                
             else:
                 plt.legend(loc='upper right', frameon=False)
                 bins = np.linspace(datashop[datashop>0].min(),datashop[datashop>0].max(),30)
@@ -72,7 +74,7 @@ class FrameCleaner():
             if feature == 'framerate':
                 plt.title('Shopping %s for Study %s' % (feature.title(),self.studyid),size='x-large',weight='bold')
             else:
-                plt.title('Transformed Shopping %s for Study %s' % (feature.title(),self.studyid),size='x-large',weight='bold')
+                plt.title('Shopping %s for Study %s' % (feature.title(),self.studyid),size='x-large',weight='bold')
             plt.xlabel(feature.title())
         plt.tight_layout()
         fig.savefig(self.charts)
@@ -89,7 +91,7 @@ class FrameCleaner():
         self.dqs = pd.read_csv("C:/Users/Justin.Stuck/Desktop/JDQs.csv",low_memory=False)['ticketId']
         
         #transform data for latency and bandwidth to normal distribution
-        self.history = self.transform(self.history,['latency','bandwidth'])
+        #self.history = self.transform(self.history,['latency','bandwidth'])
 
         self.history = pd.concat([self.history[self.history.name =='Unity Frame Shopping'],self.history[self.history.name =='Unity Frame Tutorial']])
         self.full_history=self.history
