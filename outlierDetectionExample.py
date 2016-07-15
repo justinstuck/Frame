@@ -61,20 +61,19 @@ def calc_and_plot(outliers_fraction):
     '''
     clf = EllipticEnvelope(contamination=.1)
     
-    xx, yy = np.meshgrid(np.linspace(-5, 5, 500), np.linspace(-3, 3, 500))
+    xx, yy, zz = np.meshgrid(np.linspace(-5, 5, 500), np.linspace(-3, 3, 500),np.linspace(-3, 3, 500))
     n_inliers = int((1. - outliers_fraction) * n_samples)
     n_outliers = int(outliers_fraction * n_samples)
     ground_truth = np.ones(n_samples, dtype=int)
     ground_truth[-n_outliers:] = 0
     
-    X = zip(data['bandwidth'],data['latency'])
-    #plt.scatter(X[:,0],X[:,1])
-    #print X
+    X = zip(data['bandwidth'],data['latency'],data['framerate'])
+
     plt.show()
     plt.figure(figsize=(10, 5))
     #for i, (clf_name, clf) in enumerate(classifiers.items()):
         # fit the data and tag outliers
-    clf.fit(zip(data['bandwidth'],data['latency']))
+    clf.fit(zip(data['bandwidth'],data['latency'],data['framerate']))
     data['y_pred'] = clf.decision_function(X).ravel()
     threshold = stats.scoreatpercentile(data['y_pred'],
                                         100 * outliers_fraction)
@@ -83,7 +82,7 @@ def calc_and_plot(outliers_fraction):
     
     n_errors = (data['y_pred'] != ground_truth).sum()
     # plot the levels lines and the points
-    Z = clf.decision_function(np.c_[xx.ravel(), yy.ravel()])
+    Z = clf.decision_function(np.c_[xx.ravel(), yy.ravel(), zz.ravel()])
     Z = Z.reshape(xx.shape)
 
     plt.title("Outlier detection")
