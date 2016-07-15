@@ -30,9 +30,10 @@ class FrameCleaner():
     def calc_stats(self, data):
         features = self.features
         d = {'mean' : pd.Series([data[x].mean() for x in features], index=features),
-             'std' : pd.Series([data[x].std() for x in features], index=features),
-             'Q1' : pd.Series([np.percentile(data[x],25) for x in features], index=features),
-             'Q3' : pd.Series([np.percentile(data[x],75) for x in features], index=features)}
+             'std' : pd.Series([data[x].std() for x in features], index=features)}
+        for i in range(1,4):
+            d[('Q'+str(i))] = pd.Series([np.percentile(data[x],25*i) for x in features], index=features)
+
         self.stats = pd.DataFrame(d,index=features).transpose()
         return self.stats
         
@@ -56,11 +57,22 @@ class FrameCleaner():
             plt.subplot(len(feats), 1, feats.index(feature)+1)
             plt.hist(datashop, bins, alpha=0.8, label='Shopping')
             plt.hist(datatut, bins, alpha=0.8, label='Tutorial', color='crimson')
+            stats = self.stats
+            ymin, ymax = plt.ylim()
+            for i in range(1,4):
+                quartile = ('Q'+str(i))
+                plt.axvline(x=stats[feature][quartile],linewidth=3,color='g')
+                plt.text(stats[feature][quartile],ymax/2,quartile+' = {0:.2f}'.format(stats[feature][quartile]),rotation=-90,color='k',weight = 'bold')
+
             #fit_alpha, fit_loc, fit_beta=stats.gamma.fit(data.shopping)
             plt.legend(loc='upper left', frameon=False)
             plt.xlabel(feature)
         plt.tight_layout()
         fig.savefig(self.charts)
+    def transform(self, data, features):
+        for feat in features:
+            data[feat] = data[feat].apply(lambda x: math.log(x+.0000000000001))
+        return data
         
     def get_data(self):
         uri = 'http://ds/api/warehouse/all-the-frame-metrics-by-step?fmt=csv'
@@ -69,8 +81,9 @@ class FrameCleaner():
         
         self.dqs = pd.read_csv("C:/Users/Justin.Stuck/Desktop/JDQs.csv",low_memory=False)['ticketId']
         
-        self.history['latency'] = self.history['latency'].apply(lambda x: math.log(x+.0000000000001))
-        self.history['bandwidth'] = self.history['bandwidth'].apply(lambda x: math.log(x+.0000000000001))
+        #transform data from 
+        self.history = self.transform(self.history,['latency','bandwidth'])
+
         self.history = pd.concat([self.history[self.history.name =='Unity Frame Shopping'],self.history[self.history.name =='Unity Frame Tutorial']])
         self.full_history=self.history
         
