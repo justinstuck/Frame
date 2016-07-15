@@ -48,25 +48,32 @@ class FrameCleaner():
         #fig.savefig('test2png.png', dpi=100)
         for feature in feats:
             datashop =self.shopping[feature]
+            
+            #datashop = self.history[self.history.name =='Unity Frame Shopping'][feature]
+            
             datatut = self.tutorial[feature]
+            plt.subplot(len(feats), 1, feats.index(feature)+1)
             if feature == 'framerate':
                 bins = np.linspace(datashop[datashop>0].min(),datashop[datashop>0].max(),26)
+                plt.legend(loc='upper left', frameon=False)            
             else:
-                bins = np.linspace(datashop[datashop>0].min(),datashop[datashop>0].max(),40)
-                #bins = np.linspace(datashop[datashop>0].min(),200,50)
-            plt.subplot(len(feats), 1, feats.index(feature)+1)
-            plt.hist(datashop, bins, alpha=0.8, label='Shopping')
-            plt.hist(datatut, bins, alpha=0.8, label='Tutorial', color='crimson')
+                plt.legend(loc='upper right', frameon=False)
+                bins = np.linspace(datashop[datashop>0].min(),datashop[datashop>0].max(),30)
+            plt.hist(datashop, bins, alpha=0.8, label='Shopping',color='blue')
+            #plt.hist(datatut, bins, alpha=0.8, label='Tutorial', color='crimson')
             stats = self.stats
             ymin, ymax = plt.ylim()
             for i in range(1,4):
                 quartile = ('Q'+str(i))
-                plt.axvline(x=stats[feature][quartile],linewidth=3,color='g')
-                plt.text(stats[feature][quartile],ymax/2,quartile+' = {0:.2f}'.format(stats[feature][quartile]),rotation=-90,color='k',weight = 'bold')
-
+                plt.axvline(x=stats[feature][quartile],linewidth=3,color='crimson')
+                plt.text(stats[feature][quartile],ymax/2,quartile+' = {0:.2f}'.format(stats[feature][quartile]),rotation=-90,color='k',weight='bold',size='large')
             #fit_alpha, fit_loc, fit_beta=stats.gamma.fit(data.shopping)
-            plt.legend(loc='upper left', frameon=False)
-            plt.xlabel(feature)
+            #plt.legend(loc='upper left', frameon=False)
+            if feature == 'framerate':
+                plt.title('Shopping %s for Study %s' % (feature.title(),self.studyid),size='x-large',weight='bold')
+            else:
+                plt.title('Transformed Shopping %s for Study %s' % (feature.title(),self.studyid),size='x-large',weight='bold')
+            plt.xlabel(feature.title())
         plt.tight_layout()
         fig.savefig(self.charts)
     def transform(self, data, features):
@@ -81,7 +88,7 @@ class FrameCleaner():
         
         self.dqs = pd.read_csv("C:/Users/Justin.Stuck/Desktop/JDQs.csv",low_memory=False)['ticketId']
         
-        #transform data from 
+        #transform data for latency and bandwidth to normal distribution
         self.history = self.transform(self.history,['latency','bandwidth'])
 
         self.history = pd.concat([self.history[self.history.name =='Unity Frame Shopping'],self.history[self.history.name =='Unity Frame Tutorial']])
@@ -166,7 +173,7 @@ data = fc.calc_stats(fc.history)
 fc.plot_histos(features=fc.features)
 fc.to_excel(fc.tukey_filter(fc.shopping),'frameremovals.xlsx')
 
-print fc.stats
+#print fc.stats
 
 
 
