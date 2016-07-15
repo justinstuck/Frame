@@ -42,10 +42,7 @@ def get_data():
     #respondents = history[history['studyidguid']==studyid.lower()]
     return history[history.name == 'Unity Frame Shopping'], dqs[dqs.name== 'Unity Frame Shopping'], rawShopHistory
     
-def to_excel(data,filename):
-    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
-    data.to_excel(writer, sheet_name='Removal Candidates')
-    writer.save()
+
 def calc_and_plot(outliers_fraction):
     
     # Example settings
@@ -85,7 +82,7 @@ def calc_and_plot(outliers_fraction):
     Z = clf.decision_function(np.c_[xx.ravel(), yy.ravel()])
     Z = Z.reshape(xx.shape)
 
-    plt.title("Outlier detection")
+    plt.title("Outlier Detection for Jarden Study 4BC154FD-6429-444E-B589-4B3B7CF1BDA6",weight='bold')
     plt.xlabel('bandwidth')
     plt.ylabel('latency')    
     
@@ -119,8 +116,9 @@ def calc_and_plot(outliers_fraction):
     plt.show()
     
     outliers = raw[raw['ticketid'].isin(outliers['ticketid'])]
-    outliers = pd.merge(dqs,outliers, how='outer',left_on='ticketid',right_on='ticketid')
-    return outliers
+    dqs = raw[raw['ticketid'].isin(dqs['ticketid'])]
+    #self.outliers = pd.merge(dqs,outliers, how='outer',left_on='ticketid',right_on='ticketid')
+    return outliers, dqs
     
     
     
@@ -155,14 +153,35 @@ def plot3d():
     ax.set_xlabel('bandwidth')
     ax.set_ylabel('latency')
     ax.set_zlabel('framerate')
-    
-
-    
-    ax.view_init(elev=0., azim=90)        
-    
+    ax.view_init(elev=0., azim=90) 
     plt.show()
-
+    
+def to_excel(data,extras,filename):
+    
+    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+    data.to_excel(writer, sheet_name='Removal Candidates')
+    extras.to_excel(writer, sheet_name='Not Removed by Classifier')
+    writer.save()
+    
 #plot3d()    
     
-data = calc_and_plot(outliers_fraction = 0.10)
-to_excel(data,'mahalTest.xlsx')
+outliers,dqs = calc_and_plot(outliers_fraction = 0.10)
+print outliers
+print '*********************************'
+print dqs
+outliers['Removed by Insights'] = outliers['ticketid'].isin(dqs['ticketid'])
+extraInsights = dqs[~(dqs['ticketid'].isin(outliers['ticketid']))]
+
+#data['Removed by insights'] = 
+to_excel(outliers,extraInsights,'mahalTest.xlsx')
+
+
+
+
+
+
+
+
+
+
+
