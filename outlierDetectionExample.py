@@ -22,28 +22,32 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn import preprocessing
 
 
-def chi2_outliers(data, confidence,df):
-        
+def chi2_outliers(data, confidences,df):
+    #returns list of lists of respondents removed at confidence levels given by confidences
         #Mahalanobis distances define multidimensional ellipsoids. The square of the distances follow a chi-square distribution with p degrees of freedom
         #where p is the number of random variables in the multivariate distribution. Ref Warre, Smith, Cybenko "Use of Mahalanobis Distance..." and Johnson and Wichern (2007, p. 155, Eq. 4-8)    
+    return [data[data['MDist']>= chi2.ppf(conf,df)] for conf in confidences] 
+    
+    
     #x = np.linspace(chi2.ppf(0.01, df), chi2.ppf(0.99, df), 100)
     #print "chi-square 95% quantile for {} degrees of freedom is {}".format(df,chi2.ppf(.95,df))
-    return data[data['MDist']>= chi2.ppf(confidence,df)]
+    
         #plt.plot(x, chi2.pdf(x, df),'r-', lw=5, alpha=0.6, label='chi2 pdf')
 
+def transform_and_scale(data, transform_vars,other_vars):
+    for u in transform_vars:
+        data[u] = preprocessing.scale(data[u].apply(lambda x: math.log(x+.0000000000000001)))
+    for v in other_vars:
+        data[v] = preprocessing.scale(data[v])
+    return data
+        
 class FrameCleaner():
     def __init__(self,studyid):
         self.studyid = studyid
         self.features = [ 'bandwidth', 'latency', 'framerate']
         self.experiences = ['Shopping', 'Tutorial']
     
-    def transform_and_scale(data, transform_vars,other_vars):
-        for var in transform_vars:
-            data[var] = preprocessing.scale(data[var].apply(lambda x: math.log(x+.0000000000000001)))
-        for uVar in other_vars:
-            data[uVar] = preprocessing.scale(data[uVar])
-        return data
-            
+
     def get_data(self):
         uri = 'http://ds/api/warehouse/all-the-frame-metrics-by-step?fmt=csv'
         resp = get(uri)
@@ -52,9 +56,9 @@ class FrameCleaner():
         dqs = pd.read_csv("C:/Users/Justin.Stuck/Desktop/JDQs.csv",low_memory=False)['ticketId']
         history = history[history.name =='Unity Frame Shopping']
         history = history[history.iscomplete == 1]
-        rawShopHistory = history
+        rawShopHistory = history.copy(deep=True)
     
-        history = self.transform_and_scale(history,['latency','bandwidth'],['framerate'])
+        history = transform_and_scale(history,['latency','bandwidth'],['framerate'])
         
         dqs = history[history['ticketid'].isin(dqs)]   
         history = history[history['studyidguid']==str.lower(self.studyid)]
@@ -63,42 +67,35 @@ class FrameCleaner():
         history = pd.concat([history,dqs])
                   
         #respondents = history[history['studyidguid']==studyid.lower()]
+        print rawShopHistory
         return history, dqs[dqs.name== 'Unity Frame Shopping'], rawShopHistory#, rawShopHistory[rawShopHistory['studyidguid']==str.lower(study) & rawShopHistory['iscomplete']==1] 
         
     
     def calc(self,outliers_fraction):
         
-        # Example settings
-        data, dqs, raw = self.get_data()
-        
-        n_samples = data.shape[0]
 
-        
+        data, dqs, raw = self.get_data()        
         clf = EllipticEnvelope(contamination=outliers_fraction)
-
-        X2 = zip(data['bandwidth'],data['latency'],data['framerate'])
-
-        clf.fit(X2)
-        
+        X = zip(data['bandwidth'],data['latency'],data['framerate'])
+        clf.fit(X)        
         #data['y_pred'] = clf.decision_function(X).ravel()
-        data['y_pred'] = clf.decision_function(X2).ravel()
+        data['y_pred'] = clf.decision_function(X).ravel()
         
         threshold = np.percentile(data['y_pred'],
                                             100 * outliers_fraction)
-        print "Threshold: {}".format(threshold)
-        data['MDist']=clf.mahalanobis(X2)
+        data['MDist']=clf.mahalanobis(X)
         
         #picking "bad" outliers, not good ones
-        outliers = chi2_outliers(data, .95, 3)
-        outliers = outliers[outliers['bandwidth']<outliers['latency']]
-       
+        outliers = chi2_outliers(data, [.8,.9,.95], 3)
+        outliers = [i[i['bandwidth']<i['latency']] for i in outliers]
+        
         #outliers = data[data['y_pred']<threshold]
         #data['y_pred'] = data['y_pred'] > threshold
-       
-        outliers = raw[raw['ticketid'].isin(outliers['ticketid'])]
-        outliers = outliers[outliers['framerate']<(raw['framerate'].mean()+raw['framerate'].std())] #making sure we don't remove aberrantly good framrates
+        #outliers = [x[['ticketid','MDist']].merge(raw, how='inner').drop_duplicates() for x in outliers]
+        #print raw
+        outliers = [raw[raw['ticketid'].isin(j['ticketid'])] for j in outliers]
+        outliers = [k[k['framerate']<(k['framerate'].mean()+k['framerate'].std())] for k in outliers] #making sure we don't remove aberrantly good framrates
         #outliers.sort_values(by='MDist',inplace=True)
-        
         dqs = raw[raw['ticketid'].isin(dqs['ticketid'])]
         return outliers, dqs
     
@@ -108,12 +105,12 @@ class FrameCleaner():
             data.to_excel(writer, sheet_name=sheet)
         writer.save()
 #plot3d()    
-    
-outliers,dqs = calc_and_plot(outliers_fraction = 0.10)
-outliers['Removed by Insights'] = outliers['ticketid'].isin(dqs['ticketid'])
-extraInsights = dqs[~(dqs['ticketid'].isin(outliers['ticketid']))]
+fc = FrameCleaner('4BC154FD-6429-444E-B589-4B3B7CF1BDA6')
+outliers,dqs = fc.calc(outliers_fraction = 0.10)
+#outliers['Removed by Insights'] = outliers['ticketid'].isin(dqs['ticketid'])
+#extraInsights = dqs[~(dqs['ticketid'].isin(outliers['ticketid']))]
 
-#data['Removed by insights'] = 
+#data['Removed by insights']  
 #to_excel(outliers,extraInsights,'mahalTest.xlsx')
 
 
@@ -136,7 +133,7 @@ extraInsights = dqs[~(dqs['ticketid'].isin(outliers['ticketid']))]
         
 
         
-        
+        #n_samples = data.shape[0]
         #n_errors = (data['y_pred'] != ground_truth).sum()
 '''
         bins = np.linspace(data['MDist'].min(),data['MDist'].max(),30)
