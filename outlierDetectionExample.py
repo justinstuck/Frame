@@ -91,22 +91,24 @@ class FrameCleaner():
         
         #outliers = data[data['y_pred']<threshold]
         #data['y_pred'] = data['y_pred'] > threshold
-        #outliers = [x[['ticketid','MDist']].merge(raw, how='inner').drop_duplicates() for x in outliers]
+        outliers = [x[['ticketid','MDist']].merge(raw, how='inner').drop_duplicates() for x in outliers]
         #print raw
-        outliers = [raw[raw['ticketid'].isin(j['ticketid'])] for j in outliers]
+        #outliers = [raw[raw['ticketid'].isin(j['ticketid'])] for j in outliers]
         outliers = [k[k['framerate']<(k['framerate'].mean()+k['framerate'].std())] for k in outliers] #making sure we don't remove aberrantly good framrates
         #outliers.sort_values(by='MDist',inplace=True)
         dqs = raw[raw['ticketid'].isin(dqs['ticketid'])]
-        return outliers, dqs
+        data = data.sort_values('MDist', ascending=False).drop_duplicates()
+        return outliers, dqs, data
     
-    def to_excel(data,sheetnames,filename):
+    def to_excel(self,data,sheetnames,filename):
         writer = pd.ExcelWriter(filename, engine='xlsxwriter')
         for data, sheet in zip(data,sheetnames):
             data.to_excel(writer, sheet_name=sheet)
         writer.save()
 #plot3d()    
 fc = FrameCleaner('4BC154FD-6429-444E-B589-4B3B7CF1BDA6')
-outliers,dqs = fc.calc(outliers_fraction = 0.10)
+outliers,dqs, data = fc.calc(outliers_fraction = 0.10)
+fc.to_excel(outliers,['80%','90%','95%'],'outliers.xlsx')
 #outliers['Removed by Insights'] = outliers['ticketid'].isin(dqs['ticketid'])
 #extraInsights = dqs[~(dqs['ticketid'].isin(outliers['ticketid']))]
 
