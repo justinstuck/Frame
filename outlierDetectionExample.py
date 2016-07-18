@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.font_manager
 from scipy import stats
+from scipy.stats import chi2
 
 from sklearn import svm
 from sklearn.covariance import EllipticEnvelope
@@ -21,148 +22,91 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn import preprocessing
 
 
-def get_data():
-    uri = 'http://ds/api/warehouse/all-the-frame-metrics-by-step?fmt=csv'
-    resp = get(uri)
-    history = pd.read_csv(StringIO(resp.text))
-    study = '4BC154FD-6429-444E-B589-4B3B7CF1BDA6'
-    #'4BC154FD-6429-444E-B589-4B3B7CF1BDA6'
-    dqs = pd.read_csv("C:/Users/Justin.Stuck/Desktop/JDQs.csv",low_memory=False)['ticketId']
-    history = pd.concat([history[history.name =='Unity Frame Shopping'],history[history.name =='Unity Frame Tutorial']])
-    rawShopHistory = history[history.name =='Unity Frame Shopping']
-    history['latency'] = preprocessing.scale(history['latency'].apply(lambda x: math.log(x+.0000000000001)))
-    history['bandwidth'] = preprocessing.scale(history['bandwidth'].apply(lambda x: math.log(x+.0000000000001)))
-    history['framerate'] = preprocessing.scale(history['framerate'])
-    dqs = history[history['ticketid'].isin(dqs)]   
-    history = history[history['studyidguid']==str.lower(study)]
-    history = history[history.iscomplete == 1]
-    
-    history = pd.concat([history,dqs])
-              
-    #respondents = history[history['studyidguid']==studyid.lower()]
-    return history[history.name == 'Unity Frame Shopping'], dqs[dqs.name== 'Unity Frame Shopping'], rawShopHistory
-    
+def chi2_outliers(data, confidence,df):
+        
+        #Mahalanobis distances define multidimensional ellipsoids. The square of the distances follow a chi-square distribution with p degrees of freedom
+        #where p is the number of random variables in the multivariate distribution. Ref Warre, Smith, Cybenko "Use of Mahalanobis Distance..." and Johnson and Wichern (2007, p. 155, Eq. 4-8)    
+    #x = np.linspace(chi2.ppf(0.01, df), chi2.ppf(0.99, df), 100)
+    #print "chi-square 95% quantile for {} degrees of freedom is {}".format(df,chi2.ppf(.95,df))
+    return data[data['MDist']>= chi2.ppf(confidence,df)]
+        #plt.plot(x, chi2.pdf(x, df),'r-', lw=5, alpha=0.6, label='chi2 pdf')
 
-def calc_and_plot(outliers_fraction):
+class FrameCleaner():
+    def __init__(self,studyid):
+        self.studyid = studyid
+        self.features = [ 'bandwidth', 'latency', 'framerate']
+        self.experiences = ['Shopping', 'Tutorial']
     
-    # Example settings
-    data, dqs, raw = get_data()
-    n_samples = data.shape[0]
+    def transform_and_scale(data, transform_vars,other_vars):
+        for var in transform_vars:
+            data[var] = preprocessing.scale(data[var].apply(lambda x: math.log(x+.0000000000000001)))
+        for uVar in other_vars:
+            data[uVar] = preprocessing.scale(data[uVar])
+        return data
+            
+    def get_data(self):
+        uri = 'http://ds/api/warehouse/all-the-frame-metrics-by-step?fmt=csv'
+        resp = get(uri)
+        history = pd.read_csv(StringIO(resp.text))
+        #study = studyid'4BC154FD-6429-444E-B589-4B3B7CF1BDA6'
+        dqs = pd.read_csv("C:/Users/Justin.Stuck/Desktop/JDQs.csv",low_memory=False)['ticketId']
+        history = history[history.name =='Unity Frame Shopping']
+        history = history[history.iscomplete == 1]
+        rawShopHistory = history
     
-    # define two outlier detection tools to be compared
-    '''
-    classifiers = {
-        "One-Class SVM": svm.OneClassSVM(nu=0.95 * outliers_fraction + 0.05,
-                                         kernel="rbf", gamma=0.1),
-        "robust covariance estimator": EllipticEnvelope(contamination=.1)}
-    '''
-    clf = EllipticEnvelope(contamination=.1)
+        history = self.transform_and_scale(history,['latency','bandwidth'],['framerate'])
+        
+        dqs = history[history['ticketid'].isin(dqs)]   
+        history = history[history['studyidguid']==str.lower(self.studyid)]
     
-    xx, yy = np.meshgrid(np.linspace(-5, 5, 500), np.linspace(-3, 3, 500))#''',np.linspace(-3, 3, 500)''')
-    n_inliers = int((1. - outliers_fraction) * n_samples)
-    n_outliers = int(outliers_fraction * n_samples)
-    ground_truth = np.ones(n_samples, dtype=int)
-    ground_truth[-n_outliers:] = 0
+        
+        history = pd.concat([history,dqs])
+                  
+        #respondents = history[history['studyidguid']==studyid.lower()]
+        return history, dqs[dqs.name== 'Unity Frame Shopping'], rawShopHistory#, rawShopHistory[rawShopHistory['studyidguid']==str.lower(study) & rawShopHistory['iscomplete']==1] 
+        
     
-    X = zip(data['bandwidth'],data['latency'])#,data['framerate'])
+    def calc(self,outliers_fraction):
+        
+        # Example settings
+        data, dqs, raw = self.get_data()
+        
+        n_samples = data.shape[0]
 
-    plt.show()
-    plt.figure(figsize=(10, 5))
-    #for i, (clf_name, clf) in enumerate(classifiers.items()):
-        # fit the data and tag outliers
-    clf.fit(zip(data['bandwidth'],data['latency']))#,data['framerate']))
-    data['y_pred'] = clf.decision_function(X).ravel()
-    threshold = stats.scoreatpercentile(data['y_pred'],
-                                        100 * outliers_fraction)
-    outliers = data[data['y_pred']<threshold]
-    data['y_pred'] = data['y_pred'] > threshold
-    
-    n_errors = (data['y_pred'] != ground_truth).sum()
-    # plot the levels lines and the points
-    Z = clf.decision_function(np.c_[xx.ravel(), yy.ravel()])
-    Z = Z.reshape(xx.shape)
+        
+        clf = EllipticEnvelope(contamination=outliers_fraction)
 
-    plt.title("Outlier Detection for Jarden Study 4BC154FD-6429-444E-B589-4B3B7CF1BDA6",weight='bold')
-    plt.xlabel('bandwidth')
-    plt.ylabel('latency')    
-    
-    
-    
-    plt.contourf(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),
-                     cmap=plt.cm.Blues_r)
-    cs = plt.contour(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),cmap=plt.cm.Blues_r)
-    plt.clabel(cs, colors='k', fontsize=14)
-    
-    a = plt.contour(xx, yy, Z, levels=[threshold],
-                        linewidths=2, colors='red')
-    plt.contourf(xx, yy, Z, levels=[threshold, Z.max()],
-                     colors='orange')
-    b = plt.scatter(data['bandwidth'],data['latency'], c='white')
-    c = plt.scatter(dqs['bandwidth'],dqs['latency'], c='black')
-    
-    #picking "bad" outliers, not good ones
-    outliers = outliers[outliers['bandwidth']<outliers['latency']]
-    outies = plt.scatter(outliers['bandwidth'],outliers['latency'], s=100, facecolors='none', edgecolors='g')
-    plt.axis('tight')
-    plt.legend(
-        [a.collections[0], b, c, outies],
-        ['learned decision function', 'true inliers', 'true outliers', 'Recommended for Removal'],
-        prop=matplotlib.font_manager.FontProperties(size=11))
-    #subplot.set_xlabel("%d. %s (errors: %d)" % (i + 1, clf_name, n_errors))
-    plt.xlim((-5, 5))
-    plt.ylim((-3, 3))
-    #plt.subplots_adjust(0.04, 0.1, 0.96, 0.94, 0.1, 0.26)
-    
-    plt.show()
-    
-    outliers = raw[raw['ticketid'].isin(outliers['ticketid'])]
-    dqs = raw[raw['ticketid'].isin(dqs['ticketid'])]
-    #self.outliers = pd.merge(dqs,outliers, how='outer',left_on='ticketid',right_on='ticketid')
-    return outliers, dqs
-    
-    
-    
-    
-def plot3d():
-    outliers_fraction = .1
-    data, dqs = get_data()
-    n_samples = data.shape[0]
-    clf = EllipticEnvelope(contamination=.1)
-    
-    #xx, yy = np.meshgrid(np.linspace(-5, 5, 500), np.linspace(-3, 3, 500))
-    n_inliers = int((1. - outliers_fraction) * n_samples)
-    n_outliers = int(outliers_fraction * n_samples)
-    ground_truth = np.ones(n_samples, dtype=int)
-    ground_truth[-n_outliers:] = 0
-    
-    
-    
-    
-    X = zip(data['bandwidth'],data['latency'],data['framerate'])
-    
-    fig = plt.figure(figsize=(10, 5))
-    ax = fig.add_subplot(111, projection='3d')
-    clf.fit(zip(data['bandwidth'],data['latency'],data['framerate']))
-    xx, yy = np.meshgrid(np.linspace(data['bandwidth'].min(), data['bandwidth'].max(), 500), np.linspace(data['latency'].min(), data['latency'].max(), 500))
-    zz = yy-xx
-    ax.scatter(data['bandwidth'],data['latency'],data['framerate'], c='b', marker='o')
-    ax.scatter(dqs['bandwidth'],dqs['latency'],dqs['framerate'], c='r', marker='^')
-    ax.hold(True)
+        X2 = zip(data['bandwidth'],data['latency'],data['framerate'])
 
-    ax.plot_surface(xx,yy,zz,color='orange',linewidth=0)
-    ax.set_xlabel('bandwidth')
-    ax.set_ylabel('latency')
-    ax.set_zlabel('framerate')
-    ax.view_init(elev=0., azim=90) 
-    plt.show()
+        clf.fit(X2)
+        
+        #data['y_pred'] = clf.decision_function(X).ravel()
+        data['y_pred'] = clf.decision_function(X2).ravel()
+        
+        threshold = np.percentile(data['y_pred'],
+                                            100 * outliers_fraction)
+        print "Threshold: {}".format(threshold)
+        data['MDist']=clf.mahalanobis(X2)
+        
+        #picking "bad" outliers, not good ones
+        outliers = chi2_outliers(data, .95, 3)
+        outliers = outliers[outliers['bandwidth']<outliers['latency']]
+       
+        #outliers = data[data['y_pred']<threshold]
+        #data['y_pred'] = data['y_pred'] > threshold
+       
+        outliers = raw[raw['ticketid'].isin(outliers['ticketid'])]
+        outliers = outliers[outliers['framerate']<(raw['framerate'].mean()+raw['framerate'].std())] #making sure we don't remove aberrantly good framrates
+        #outliers.sort_values(by='MDist',inplace=True)
+        
+        dqs = raw[raw['ticketid'].isin(dqs['ticketid'])]
+        return outliers, dqs
     
-def to_excel(data,extras,filename):
-    
-    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
-    data.to_excel(writer, sheet_name='Removal Candidates')
-    extras.to_excel(writer, sheet_name='Not Removed by Classifier')
-    writer.save()
-    
+    def to_excel(data,sheetnames,filename):
+        writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+        for data, sheet in zip(data,sheetnames):
+            data.to_excel(writer, sheet_name=sheet)
+        writer.save()
 #plot3d()    
     
 outliers,dqs = calc_and_plot(outliers_fraction = 0.10)
@@ -176,6 +120,113 @@ extraInsights = dqs[~(dqs['ticketid'].isin(outliers['ticketid']))]
 
 
 
+
+
+
+
+
+
+        
+        
+        
+        
+        
+        
+        
+        
+
+        
+        
+        #n_errors = (data['y_pred'] != ground_truth).sum()
+'''
+        bins = np.linspace(data['MDist'].min(),data['MDist'].max(),30)
+        plt.hist(data['MDist'], bins, alpha=0.8, label='Mahalanobis Distance',color='green')    
+        plt.title("Frame Mahalanobis Distance Distribution", weight='bold',size=15)
+        plt.xlabel("Squared Mahalanobis Distance",size=14)
+
+        
+    
+        
+        # plot the levels lines and the points
+        Z = clf.decision_function(np.c_[xx.ravel(), yy.ravel()])
+        Z = Z.reshape(xx.shape)
+    
+        plt.title("Outlier Detection for Jarden Study 4BC154FD-6429-444E-B589-4B3B7CF1BDA6",weight='bold')
+        plt.xlabel('bandwidth')
+        plt.ylabel('latency')    
+        
+        
+        
+        plt.contourf(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),
+                         cmap=plt.cm.Blues_r)
+        cs = plt.contour(xx, yy, Z, levels=np.linspace(Z.min(), threshold, 7),cmap=plt.cm.Blues_r)
+        plt.clabel(cs, colors='k', fontsize=14)
+        
+        a = plt.contour(xx, yy, Z, levels=[threshold],
+                            linewidths=2, colors='red')
+        plt.contourf(xx, yy, Z, levels=[threshold, Z.max()],
+                         colors='orange')
+        b = plt.scatter(data['bandwidth'],data['latency'], c='white')
+        c = plt.scatter(dqs['bandwidth'],dqs['latency'], c='black')
+         
+        
+        
+        
+    
+        outies = plt.scatter(outliers['bandwidth'],outliers['latency'], s=100, facecolors='none', edgecolors='g')
+        plt.axis('tight')
+        plt.legend(
+            [a.collections[0], b, c, outies],
+            ['learned decision function', 'true inliers', 'true outliers', 'Recommended for Removal'],
+            prop=matplotlib.font_manager.FontProperties(size=11))
+        #subplot.set_xlabel("%d. %s (errors: %d)" % (i + 1, clf_name, n_errors))
+        plt.xlim((-5, 5))
+        plt.ylim((-3, 3))
+        #plt.subplots_adjust(0.04, 0.1, 0.96, 0.94, 0.1, 0.26)
+        
+        plt.show()
+        
+    
+    def plot3d():
+        outliers_fraction = .1
+        data, dqs = get_data()
+        n_samples = data.shape[0]
+        clf = EllipticEnvelope(contamination=.1)
+        
+        #xx, yy = np.meshgrid(np.linspace(-5, 5, 500), np.linspace(-3, 3, 500))
+        n_inliers = int((1. - outliers_fraction) * n_samples)
+        n_outliers = int(outliers_fraction * n_samples)
+        ground_truth = np.ones(n_samples, dtype=int)
+        ground_truth[-n_outliers:] = 0
+        
+        
+        
+        
+        X = zip(data['bandwidth'],data['latency'],data['framerate'])
+        
+        fig = plt.figure(figsize=(10, 5))
+        ax = fig.add_subplot(111, projection='3d')
+        clf.fit(zip(data['bandwidth'],data['latency'],data['framerate']))
+        xx, yy = np.meshgrid(np.linspace(data['bandwidth'].min(), data['bandwidth'].max(), 500), np.linspace(data['latency'].min(), data['latency'].max(), 500))
+        zz = yy-xx
+        ax.scatter(data['bandwidth'],data['latency'],data['framerate'], c='b', marker='o')
+        ax.scatter(dqs['bandwidth'],dqs['latency'],dqs['framerate'], c='r', marker='^')
+        ax.hold(True)
+    
+        ax.plot_surface(xx,yy,zz,color='orange',linewidth=0)
+        ax.set_xlabel('bandwidth')
+        ax.set_ylabel('latency')
+        ax.set_zlabel('framerate')
+        ax.view_init(elev=0., azim=90) 
+        plt.show()
+      
+    def to_excel(data,extras,filename):
+        
+        writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+        data.to_excel(writer, sheet_name='Removal Candidates')
+        extras.to_excel(writer, sheet_name='Not Removed by Classifier')
+        writer.save()
+'''
 
 
 
