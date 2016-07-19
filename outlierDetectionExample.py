@@ -65,7 +65,7 @@ class FrameCleaner():
         history = history[history['studyidguid']==str.lower(self.studyid)]
     
         
-        history = pd.concat([history,dqs])
+        #history = pd.concat([history,dqs])
                   
         #respondents = history[history['studyidguid']==studyid.lower()]
         #print rawShopHistory
@@ -100,7 +100,8 @@ class FrameCleaner():
         
         #dqs = raw[raw['ticketid'].isin(dqs['ticketid'])]
         #data = data.sort_values('MDist', ascending=False).drop_duplicates()
-        return outliers, dqs, data
+        
+        return outliers, dqs, data.sort_values(by='MDist', ascending=False).drop_duplicates().drop(['Tbandwidth','Tlatency','Tframerate'],axis=1)
     
     def to_excel(self,data,sheetnames,filename):
         writer = pd.ExcelWriter(filename, engine='xlsxwriter')
@@ -127,10 +128,12 @@ class FrameCleaner():
         
         writer.save()     
         
-    def more_colorful_excel(self,data,filename,intervals):
+    def more_colorful_excel(self,data,fulldata,filename,intervals):
         
         writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+        fulldata.to_excel(writer,sheet_name='All Respondents')
         data.to_excel(writer, sheet_name='Suggested Removals')
+
         workbook = writer.book
         green = workbook.add_format({'bg_color': 'green'})
         yellow = workbook.add_format({'bg_color': 'yellow'})
@@ -155,9 +158,13 @@ fc = FrameCleaner('4BC154FD-6429-444E-B589-4B3B7CF1BDA6')
 outliers,dqs, data = fc.calc(outliers_fraction = 0.10)
 #fc.to_excel(outliers,['80%','90%','95%'],'outliers.xlsx')
 inters = intervals(3,[.80,.90,.95])
-
+outliers[0]['Removed by Insights'] = outliers[0]['ticketid'].isin(dqs['ticketid'])
+data['Removed by Insights'] = data['ticketid'].isin(dqs['ticketid'])
+data['Removed by JStuck'] = data['ticketid'].isin(outliers[0]['ticketid'])
+data['Confidence Level'] = chi2.cdf(data['MDist'],3)
+outliers[0]['Confidence Level'] = chi2.cdf(outliers[0]['MDist'],3)
 #fc.colorful_excel(outliers[0],'colorfulouties.xlsx', inters)
-fc.more_colorful_excel(outliers[0],'morecolor.xlsx', inters)
+fc.more_colorful_excel(outliers[0],data,'CleansedJarden.xlsx', inters)
 
 #outliers['Removed by Insights'] = outliers['ticketid'].isin(dqs['ticketid'])
 #extraInsights = dqs[~(dqs['ticketid'].isin(outliers['ticketid']))]
