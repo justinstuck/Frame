@@ -1,0 +1,50 @@
+   
+\documentclass[11pt]{article}
+\renewcommand{\baselinestretch}{1.05}
+\usepackage{amsmath,amsthm,verbatim,amssymb,amsfonts,amscd, graphicx}
+\usepackage{graphics}
+\topmargin0.0cm
+\headheight0.0cm
+\headsep0.0cm
+\oddsidemargin0.0cm
+\textheight23.0cm
+\textwidth16.5cm
+\footskip1.0cm
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem*{surfacecor}{Corollary 1}
+\newtheorem{conjecture}{Conjecture} 
+\newtheorem{question}{Question} 
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+
+ \begin{document}
+ 
+
+
+\title{Frame Classifier}
+\author{Justin Stuck}
+\maketitle
+
+\section{Introduction}
+
+This document outlines the inner workings of the Frame Classifier. The purpose of this program is to classifying potentially problematic user experiences by identifying outliers in each of the studies. 
+
+\subsection{Structure}
+Identification of outliers is done based upon three metrics: latency, bandwidth, and frame rate. Each of these features is obtained through the Frame api every 3 seconds throughout the user Frame tutorial and shopping experience. For the sake of this classifier, we only consider the respondents' shopping experience.
+
+\subsection{The Math}\label{section:mathmode}
+
+The respondents' latency and the bandwidth data were found to follow log normal distributions. Before any analysis is done, the log of the latency and bandwidth is taken and all three variables are standardized using the sklearn preprocessing library.
+Frame rate is taken to be approximately normal for this analysis. Thus, after scaling, $X_i\sim\textit{N}(0,1)$ for all three variables. 
+
+
+\section{References}
+One of the nice things about using LaTeX is that it makes internal references easy.  For example, if I want to remind you where I discussed math mode, I can mention that it was in Section~\ref{section:mathmode}.  If you're looking at the pdf file, you see the correct reference, but in the TeX file I typed a label that I had attached to that section.  (You may need to typeset your document more than once to make the references show up correctly.)  Labels work for definitions, theorems, questions, sections, diagrams, and equations, among others.
+
+ 
+ 
+\end{document}
