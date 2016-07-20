@@ -55,13 +55,14 @@ class FrameCleaner():
         resp = get(uri)
         history = pd.read_csv(StringIO(resp.text))
         #study = studyid'4BC154FD-6429-444E-B589-4B3B7CF1BDA6'
-        dqs = pd.read_csv("C:/Users/Justin.Stuck/Desktop/JDQs.csv",low_memory=False)['ticketId']
+        dqs = pd.read_csv("C:/Users/Justin.Stuck/Desktop/JDQs.csv",low_memory=False)
         history = history[history.name =='Unity Frame Shopping']
         history = history[history.iscomplete == 1]
         rawShopHistory = history.copy(deep=True)
     
         history = transform_and_scale(history,['latency','bandwidth'],['framerate'])
-        dqs = history[history['ticketid'].isin(dqs)]   
+        dqs = pd.merge(history,dqs, how='right', left_on='ticketid',right_on='ticketId')
+        #[history['ticketid'].isin(dqs['ticketId'])]   
         history = history[history['studyidguid']==str.lower(self.studyid)]
     
         
@@ -78,7 +79,7 @@ class FrameCleaner():
         data, dqs, raw = self.get_data()
         clf = EllipticEnvelope(contamination=outliers_fraction)
         X = zip(data['Tbandwidth'],data['Tlatency'],data['Tframerate'])
-        clf.fit(X)        
+        clf.fit(X)
         #data['y_pred'] = clf.decision_function(X).ravel()
         #data['y_pred'] = clf.decision_function(X).ravel()
         
@@ -164,7 +165,8 @@ data['Removed by JStuck'] = data['ticketid'].isin(outliers[0]['ticketid'])
 data['Confidence Level'] = chi2.cdf(data['MDist'],3)
 outliers[0]['Confidence Level'] = chi2.cdf(outliers[0]['MDist'],3)
 #fc.colorful_excel(outliers[0],'colorfulouties.xlsx', inters)
-fc.more_colorful_excel(outliers[0],data,'CleansedJarden.xlsx', inters)
+data = pd.merge(data,dqs, how='left', left_on='ticketid',right_on='ticketId')
+fc.more_colorful_excel(outliers[0],data,'mergetest.xlsx', inters)
 
 #outliers['Removed by Insights'] = outliers['ticketid'].isin(dqs['ticketid'])
 #extraInsights = dqs[~(dqs['ticketid'].isin(outliers['ticketid']))]
