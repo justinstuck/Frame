@@ -16,11 +16,11 @@ import matplotlib.font_manager
 from scipy import stats
 from scipy.stats import chi2
 
-from sklearn import svm
+
 from sklearn.covariance import EllipticEnvelope
-from mpl_toolkits.mplot3d import Axes3D
+
 from sklearn import preprocessing
-import string
+
 
 def chi2_outliers(data, confidences,df):
     #returns list of lists of respondents removed at confidence levels given by confidences
